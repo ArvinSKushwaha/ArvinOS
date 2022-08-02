@@ -5,7 +5,7 @@
 /// jmp 1,
 /// ```
 pub fn halt_loop() -> ! {
-    // This is safe as it freezes the system. No undefined behavior may propagate.
+    // SAFETY: This is safe as it freezes the system.
     unsafe {
         core::arch::asm!("cli");
         loop {

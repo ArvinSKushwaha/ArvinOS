@@ -18,3 +18,5 @@ codegen-units = 1
 # incremental = false
 
 [dependencies]
+spin = "0.9.4"
+voladdress = "1.0.2"
