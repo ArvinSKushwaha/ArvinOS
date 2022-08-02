@@ -1,3 +1,4 @@
+EXTERN(STATIC)
 ENTRY(_start)
 
 SECTIONS {
