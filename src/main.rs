@@ -1,13 +1,13 @@
 #![no_std]
 #![no_main]
-// #![feature(const_mut_refs)]
 #![allow(dead_code)]
 #![feature(used_with_arg)]
+#![feature(const_size_of_val)]
 
 use core::{arch::global_asm, panic::PanicInfo};
 
 mod intrinsics;
-mod multiboot_header;
+mod multiboot;
 mod output;
 
 global_asm! {r#"

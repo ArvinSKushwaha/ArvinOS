@@ -7,9 +7,9 @@
 pub fn halt_loop() -> ! {
     // SAFETY: This is safe as it freezes the system.
     unsafe {
-        core::arch::asm!("cli");
+        core::arch::asm!("cli", options(nomem));
         loop {
-            core::arch::asm!("hlt");
+            core::arch::asm!("hlt", options(nomem));
         }
     }
 }
