@@ -1,0 +1,15 @@
+[tasks.build]
+clear = true
+script = '''
+cargo b -r -Z unstable-options --out-dir isodir/boot/
+grub-mkrescue -o arvinos.iso isodir
+'''
+
+[tasks.run]
+dependencies = ["build"]
+script = '''
+qemu-system-x86_64 -m 2048 -drive format=raw,file=arvinos.iso
+'''
+
+[tasks.test]
+disabled = true

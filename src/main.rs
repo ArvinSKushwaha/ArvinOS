@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use core::{panic::PanicInfo, arch::global_asm};
+use core::{arch::global_asm, panic::PanicInfo};
 
 mod intrinsics;
 
