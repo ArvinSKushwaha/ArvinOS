@@ -5,17 +5,17 @@
 
 use core::{arch::global_asm, panic::PanicInfo};
 
-use crate::multiboot::Multiboot;
+use crate::{multiboot::Multiboot, output::setup_text_buffer};
 
 mod intrinsics;
-mod output;
 mod multiboot;
+mod output;
 
 global_asm! {r#"
     .set ALIGN, 1<<0
     .set MEMINFO, 1<<1
-    .set VIDINFO, 1<<2
-    .set FLAGS, ALIGN | MEMINFO | VIDINFO
+    # .set VIDINFO, 1<<2
+    .set FLAGS, ALIGN | MEMINFO # | VIDINFO
     .set MAGIC, 0x1BADB002
     .set CHECKSUM, -(MAGIC + FLAGS)
 
@@ -41,6 +41,7 @@ pub fn panic(info: &PanicInfo) -> ! {
 /// This method is the portal through which our operating system is executed.
 /// It gets called by [`_start`], which sets up our stack and halt loop.
 pub fn kernel_main(multiboot_data: Multiboot) {
+    println!("Hello, world!");
 }
 
 /// # Safety
@@ -59,6 +60,7 @@ pub unsafe extern "C" fn _start() -> ! {
     // Set up stack
     core::arch::asm!("mov $stack_top, esp");
 
+    setup_text_buffer();
     kernel_main(multiboot_data);
 
     intrinsics::halt_loop();

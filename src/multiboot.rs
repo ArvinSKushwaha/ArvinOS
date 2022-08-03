@@ -59,4 +59,3 @@ pub union FrameBufferSpecs {
     palette: FrameBufferPaletteSpecs,
     position: FrameBufferPositionSpecs,
 }
-

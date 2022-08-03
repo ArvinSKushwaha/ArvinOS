@@ -1,51 +1,85 @@
 use core::fmt::Write;
 
 use spin::mutex::SpinMutex;
-use voladdress::{Safe, VolAddress, VolBlock};
+use voladdress::{Safe, VolAddress};
 
 mod vga;
 
-use vga::{VGAEntry, VGAEntryColor, DEFAULT_VGA_COLOR, VGA_HEIGHT, VGA_WIDTH};
+use vga::{VGAEntry, VGAEntryColor, DEFAULT_VGA_COLOR};
 
-static WRITER: Writer = Writer(SpinMutex::new(WriterInner {
-    cursor: (0, 0),
-    // SAFETY: We know that our VGA buffer is located as 0xb8000
-    buffer: Buffer(unsafe { VolBlock::new(0xb8000) }),
-    current_color: DEFAULT_VGA_COLOR,
-}));
+pub(super) static WRITER: Writer = Writer(SpinMutex::new(None));
 
-struct Buffer(VolBlock<VGAEntry, Safe, Safe, { VGA_WIDTH * VGA_HEIGHT }>);
+unsafe impl Sync for Writer {}
+
+struct Buffer {
+    data: *mut VGAEntry,
+    width: usize,
+    height: usize,
+}
 
 impl Buffer {
+    const unsafe fn new(addr: usize, width: usize, height: usize) -> Self {
+        Buffer {
+            data: addr as *mut VGAEntry,
+            width,
+            height,
+        }
+    }
     fn index(&self, idx: (usize, usize)) -> VolAddress<VGAEntry, Safe, Safe> {
-        self.0.index(idx.0 * VGA_WIDTH + idx.1)
+        assert!(idx.0 < self.width && idx.1 < self.height);
+        unsafe { VolAddress::new(self.data.add(idx.0 * self.width + idx.1) as usize) }
     }
 }
 
-pub struct Writer(SpinMutex<WriterInner>);
-unsafe impl Sync for Writer {}
+pub struct Writer(SpinMutex<Option<WriterInner>>);
+
+impl Writer {
+    pub(super) unsafe fn initialize(
+        &self,
+        buffer_addr: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<(), ()> {
+        let mut lock = self.0.lock();
+        if lock.is_some() {
+            return Err(());
+        } else {
+            lock.replace(WriterInner {
+                cursor: (0, 0),
+                width,
+                height,
+                buffer: Buffer::new(buffer_addr, width, height),
+                current_color: DEFAULT_VGA_COLOR,
+            });
+        }
+        drop(lock);
+        Ok(())
+    }
+}
 
 struct WriterInner {
     cursor: (usize, usize),
+    width: usize,
+    height: usize,
     buffer: Buffer,
     current_color: VGAEntryColor,
 }
 
 impl WriterInner {
     fn new_line(&mut self) {
-        if self.cursor.0 != VGA_HEIGHT - 1 {
+        if self.cursor.0 != self.height - 1 {
             self.cursor.0 += 1;
         } else {
-            for i in 0..(VGA_HEIGHT - 1) {
-                for j in 0..VGA_WIDTH {
+            for i in 0..(self.height - 1) {
+                for j in 0..self.width {
                     self.buffer
                         .index((i, j))
                         .write(self.buffer.index((i + 1, j)).read());
                 }
             }
 
-            for j in 0..VGA_WIDTH {
-                self.buffer.index((VGA_HEIGHT - 1, j)).write(VGAEntry {
+            for j in 0..self.width {
+                self.buffer.index((self.height - 1, j)).write(VGAEntry {
                     byte: b' ',
                     color: DEFAULT_VGA_COLOR,
                 });
@@ -69,7 +103,7 @@ impl WriterInner {
                 color: self.current_color,
             });
             self.cursor.1 += 1;
-            if self.cursor.1 == VGA_WIDTH {
+            if self.cursor.1 == self.width {
                 self.new_line();
                 self.carriage_return();
             }
@@ -113,6 +147,13 @@ macro_rules! println {
 
 #[doc(hidden)]
 pub fn _print(args: core::fmt::Arguments) {
-    let mut lock = WRITER.0.lock();
-    lock.write_fmt(args).ok();
+    // Effectively waits for the lock to be initialized.
+    loop {
+        let mut lock = WRITER.0.lock();
+        if lock.is_some() {
+            lock.as_mut().unwrap().write_fmt(args).ok();
+            break;
+        }
+        drop(lock);
+    }
 }
