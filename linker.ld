@@ -3,8 +3,10 @@ ENTRY(_start)
 
 SECTIONS {
     . = 1M;
-    .text ALIGN(4096) : {
+    .multiboot ALIGN(4096) : {
         *(.multiboot)
+    }
+    .text ALIGN(4096) : {
         *(.text*)
     }
     .rodata ALIGN(4096) : {

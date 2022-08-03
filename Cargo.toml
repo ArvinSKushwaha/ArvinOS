@@ -18,5 +18,6 @@ codegen-units = 1
 # incremental = false
 
 [dependencies]
+multiboot2 = "0.14.0"
 spin = "0.9.4"
 voladdress = "1.0.2"
