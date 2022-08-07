@@ -34,8 +34,8 @@ impl VGAColor {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VGAEntry {
-    char: u8,
-    color: VGAColor,
+    pub char: u8,
+    pub color: VGAColor,
 }
 
 pub static DEFAULT_COLOR: VGAColor = VGAColor::from_fg_bg(Color::White, Color::Black);
