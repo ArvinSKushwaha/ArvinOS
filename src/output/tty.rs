@@ -5,6 +5,7 @@ use core::{
 };
 
 use spin::{lazy::Lazy, mutex::SpinMutex};
+use voladdress::{Safe, VolAddress};
 
 use super::vga::{VGAEntry, DEFAULT_COLOR, EMPTY_ENTRY};
 
@@ -18,7 +19,7 @@ struct Cursor {
 /// The buffer containing [`VGAEntry`] elements as well as the
 /// dimensions of the buffer.
 struct Buffer {
-    data: *mut VGAEntry,
+    data: VolAddress<VGAEntry, Safe, Safe>,
     width: usize,
     height: usize,
 }
@@ -27,7 +28,7 @@ impl Buffer {
     /// Create a new Buffer with given dimensions and address.
     ///
     /// # Safety
-    /// 
+    ///
     /// - Never create two buffer such that the address ranges of the
     /// buffers overlap.
     /// - The address must be aligned to `core::mem::align_of::<VGAEntry>()`.
@@ -38,7 +39,7 @@ impl Buffer {
     ///
     unsafe fn new(addr: usize, width: NonZeroUsize, height: NonZeroUsize) -> Self {
         // Ensure all data is initialized
-        let ptr = addr as *mut VGAEntry;
+        let ptr = VolAddress::<VGAEntry, Safe, Safe>::new(addr);
 
         for i in 0..(width.get() * height.get()) {
             ptr.add(i).write(EMPTY_ENTRY);
@@ -68,11 +69,9 @@ impl Buffer {
 
         // ^ The above is just a massive fuck-you to myself if I misthought this
         // lmao
-        if let Some(index) = self.compute_index(cursor) {
-            unsafe {
-                self.data.add(index).write_volatile(data);
-                true
-            }
+        if let Some(ptr) = self.ptr_at(cursor) {
+            ptr.write(data);
+            true
         } else {
             false
         }
@@ -90,15 +89,15 @@ impl Buffer {
         // called. Because race conditions create undefined behavior,
         // a mutable reference to the buffer is required to write,
         // so reads may not be race with writes.
-        self.compute_index(cursor)
-            .map(|index| unsafe { self.data.add(index).read_volatile() })
+        self.ptr_at(cursor).map(|ptr| ptr.read())
     }
 
     // #[inline(always)]
-    fn compute_index(&self, cursor: Cursor) -> Option<usize> {
+    fn ptr_at(&self, cursor: Cursor) -> Option<VolAddress<VGAEntry, Safe, Safe>> {
         if cursor.x < self.width && cursor.y < self.height {
-            Some(cursor.y * self.width + cursor.x)
+            Some(unsafe { self.data.add(cursor.y * self.width + cursor.x) })
         } else {
+            panic!("Yeet");
             None
         }
     }
@@ -125,40 +124,63 @@ impl WriterInner {
         // will work fine.
         match self.cursor.x.cmp(&(self.buffer.width - 1)) {
             Ordering::Less => self.cursor.x += 1,
-            Ordering::Equal => {
-                self.cursor.x = 0;
-                self.add_line();
-            }
+            Ordering::Equal => self.add_line(),
             _ => {}
         }
     }
 
     fn add_line(&mut self) {
         self.cursor.x = 0;
-        if self.cursor.y < self.buffer.height - 1 {
-            // If we haven't filled the buffer yet, just keep going
-            self.cursor.y += 1;
-        } else if self.cursor.y == self.buffer.height {
-            // If there's no more lines in the buffer, shift everything up one line.
-            for i in 1..self.buffer.height {
+
+        match self.cursor.y.cmp(&(self.buffer.height - 1)) {
+            Ordering::Less => self.cursor.y += 1,
+            Ordering::Equal => {
+                for i in 1..self.buffer.height {
+                    for j in 0..self.buffer.width {
+                        self.buffer.write(
+                            Cursor { x: j, y: i - 1 },
+                            self.buffer.read(Cursor { x: j, y: i }).unwrap(),
+                        );
+                    }
+                }
+
                 for j in 0..self.buffer.width {
                     self.buffer.write(
-                        Cursor { x: j, y: i - 1 },
-                        self.buffer.read(Cursor { x: j, y: i }).unwrap(),
+                        Cursor {
+                            x: j,
+                            y: self.buffer.height - 1,
+                        },
+                        EMPTY_ENTRY,
                     );
                 }
             }
-
-            for j in 0..self.buffer.width {
-                self.buffer.write(
-                    Cursor {
-                        x: j,
-                        y: self.buffer.height - 1,
-                    },
-                    EMPTY_ENTRY,
-                );
-            }
+            _ => {}
         }
+
+        // if self.cursor.y < self.buffer.height - 1 {
+        //     // If we haven't filled the buffer yet, just keep going
+        //     self.cursor.y += 1;
+        // } else if self.cursor.y == self.buffer.height {
+        //     // If there's no more lines in the buffer, shift everything up one line.
+        //     for i in 1..self.buffer.height {
+        //         for j in 0..self.buffer.width {
+        //             self.buffer.write(
+        //                 Cursor { x: j, y: i - 1 },
+        //                 self.buffer.read(Cursor { x: j, y: i }).unwrap(),
+        //             );
+        //         }
+        //     }
+        //
+        //     for j in 0..self.buffer.width {
+        //         self.buffer.write(
+        //             Cursor {
+        //                 x: j,
+        //                 y: self.buffer.height - 1,
+        //             },
+        //             EMPTY_ENTRY,
+        //         );
+        //     }
+        // }
     }
 
     fn add_byte(&mut self, c: u8) {
