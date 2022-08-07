@@ -1,47 +1,62 @@
 #![no_std]
 #![no_main]
+#![feature(used_with_arg)]
+#![feature(arbitrary_enum_discriminant)]
 
 use core::{arch::global_asm, panic::PanicInfo};
 
 mod intrinsics;
+mod multiboot;
+mod output;
 
 global_asm! {r#"
-    .set ALIGN, 1<<0
-    .set MEMINFO, 1<<1
-    .set FLAGS, ALIGN | MEMINFO
-    .set MAGIC, 0x1BADB002
-    .set CHECKSUM, -(MAGIC + FLAGS)
-
-    .section .multiboot
-    .align 4
-    .long MAGIC
-    .long FLAGS
-    .long CHECKSUM
-
-    .section .bss
+    .pushsection .bss
     .align 16
     stack_bottom:
     .skip 1048576 # 1MiB
     stack_top:
+    .popsection
+
+    .pushsection .text
+    .global _start
+    .type _start, @function
+    _start:
+        mov stack_top, esp
+        cmp eax, 0x2badb002
+        jne .inf_loop
+        # prepare arguments
+        sub esp, 12 # maintains 16 byte alignment for stack before calling
+        push ebx
+        call kernel_main
+        pop ebx
+        add esp, 12
+    .inf_loop:
+        cli
+    .l00p:
+        hlt
+        jmp .l00p
+        ret
+    .popsection
 "#}
 
 #[panic_handler]
 pub fn panic(_info: &PanicInfo) -> ! {
+    unsafe {
+        let mut ptr: *mut u16 = 0xb8000 as *mut u16;
+        let str = "Panic!!!";
+        for c in str.chars() {
+            ptr.write_volatile(0x0B00 | c as u16);
+            ptr = ptr.offset(1);
+        }
+    }
+
     intrinsics::halt_loop();
 }
 
-/// # Safety
-/// This method is meant to be loaded by GRUB, not for use to attempt
-/// to use.
+
 #[no_mangle]
-pub unsafe extern "C" fn _start() -> ! {
-    core::arch::asm!("mov $stack_top, esp");
-
-    // Everything else
+extern "C" fn kernel_main(multiboot_info: *const multiboot::Info) -> ! {
+    let _multiboot_info = unsafe { multiboot_info.read() };
 
     intrinsics::halt_loop();
-}
-
-global_asm! {
-    ".size _start, . - start"
 }

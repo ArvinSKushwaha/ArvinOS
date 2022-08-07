@@ -4,12 +4,16 @@
 /// 1: hlt
 /// jmp 1,
 /// ```
+use core::arch::asm;
+
+#[no_mangle]
 pub fn halt_loop() -> ! {
-    // This is safe as it freezes the system. No undefined behavior may propagate.
     unsafe {
-        core::arch::asm!("cli");
-        loop {
-            core::arch::asm!("hlt");
+        asm! {
+            "cli",
+            "2: hlt",
+            "jmp 2b",
+            options(nomem, noreturn)
         }
     }
 }
