@@ -14,7 +14,6 @@ struct Buffer {
 }
 
 impl Buffer {
-
     /// Write [`VGAEntry`] to location represented by the cursor (only
     /// if location in cursor is within bounds). An attempted out of bounds
     /// write is not executed.

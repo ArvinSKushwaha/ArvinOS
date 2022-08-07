@@ -53,7 +53,6 @@ pub fn panic(_info: &PanicInfo) -> ! {
     intrinsics::halt_loop();
 }
 
-
 #[no_mangle]
 extern "C" fn kernel_main(multiboot_info: *const multiboot::Info) -> ! {
     let _multiboot_info = unsafe { multiboot_info.read() };
