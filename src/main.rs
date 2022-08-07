@@ -41,7 +41,10 @@ global_asm! {r#"
 
 #[panic_handler]
 pub fn panic(_info: &PanicInfo) -> ! {
-    let str = _info.payload().downcast_ref::<&str>().unwrap_or(&"No message_provided...");
+    let str = _info
+        .payload()
+        .downcast_ref::<&str>()
+        .unwrap_or(&"No message_provided...");
     unsafe {
         let mut ptr: *mut u16 = 0xb8000 as *mut u16;
         for c in str.chars() {
@@ -55,7 +58,7 @@ pub fn panic(_info: &PanicInfo) -> ! {
 
 #[no_mangle]
 extern "C" fn kernel_main(multiboot_info: *const multiboot::Info) -> ! {
-    let _multiboot_info = unsafe { multiboot_info.read() };
+    // let _multiboot_info = unsafe { multiboot_info.read() };
 
     print!("Hello, world!");
 

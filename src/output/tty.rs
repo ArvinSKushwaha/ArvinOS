@@ -10,15 +10,15 @@ use super::vga::{VGAEntry, DEFAULT_COLOR, EMPTY_ENTRY};
 
 /// A location within a VGA Buffer.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Cursor {
-    pub x: usize,
-    pub y: usize,
+struct Cursor {
+    x: usize,
+    y: usize,
 }
 
 /// The buffer containing [`VGAEntry`] elements as well as the
 /// dimensions of the buffer.
 struct Buffer {
-    data: &'static mut [VGAEntry],
+    data: *mut VGAEntry,
     width: usize,
     height: usize,
 }
@@ -27,38 +27,16 @@ impl Buffer {
     /// Create a new Buffer with given dimensions and address.
     ///
     /// # Safety
+    /// 
+    /// - Never create two buffer such that the address ranges of the
+    /// buffers overlap.
+    /// - The address must be aligned to `core::mem::align_of::<VGAEntry>()`.
+    /// - `width * height` must not exceed `isize::MAX`. Also, see [`core::ptr::offset`].
+    /// - No other accesses, read or write, are permitted to any addresses to be
+    /// contained in this buffer: `addr..(addr + width * height * mem::size_of::<VGAEntry>())`, for the lifetime
+    /// of the buffer.
     ///
-    /// See [`core::slice::from_raw_parts_mut`]. Safety requirements have been copied below
-    /// as follows:
-    ///
-    /// Behavior is undefined if any of the following conditions are violated:
-    ///
-    /// * `data` must be [valid] for both reads and writes for `len * mem::size_of::<T>()` many bytes,
-    ///   and it must be properly aligned. This means in particular:
-    ///
-    ///     * The entire memory range of this slice must be contained within a single allocated object!
-    ///       Slices can never span across multiple allocated objects.
-    ///     * `data` must be non-null and aligned even for zero-length slices. One
-    ///       reason for this is that enum layout optimizations may rely on references
-    ///       (including slices of any length) being aligned and non-null to distinguish
-    ///       them from other data. You can obtain a pointer that is usable as `data`
-    ///       for zero-length slices using [`NonNull::dangling()`].
-    ///
-    /// * `data` must point to `len` consecutive properly initialized values of type `T`.
-    ///     - This is handled, as all the data within the given range is initialized to
-    ///     [`EMPTY_ENTRY`]
-    ///
-    ///
-    /// * The memory referenced by the returned slice must not be accessed through any other pointer
-    ///   (not derived from the return value) for the duration of lifetime `'a`.
-    ///   Both read and write accesses are forbidden.
-    ///
-    /// * The total size `len * mem::size_of::<T>()` of the slice must be no larger than `isize::MAX`.
-    ///   See the safety documentation of [`pointer::offset`].
-    ///
-    /// [valid]: ptr#safety
-    /// [`NonNull::dangling()`]: ptr::NonNull::dangling
-    pub unsafe fn new(addr: usize, width: NonZeroUsize, height: NonZeroUsize) -> Self {
+    unsafe fn new(addr: usize, width: NonZeroUsize, height: NonZeroUsize) -> Self {
         // Ensure all data is initialized
         let ptr = addr as *mut VGAEntry;
 
@@ -67,7 +45,7 @@ impl Buffer {
         }
 
         Self {
-            data: core::slice::from_raw_parts_mut(ptr, width.get() * height.get()),
+            data: ptr,
             width: width.get(),
             height: height.get(),
         }
@@ -80,7 +58,7 @@ impl Buffer {
     /// The method will return `false` on an out-of-bounds write attempt or
     /// if the given cursor is invalid. Otherwise, it will perform the
     /// write and return `true`.
-    pub fn write(&mut self, cursor: Cursor, data: VGAEntry) -> bool {
+    fn write(&mut self, cursor: Cursor, data: VGAEntry) -> bool {
         // SAFETY: The creation of this buffer requires that the width
         // and height are given correctly in [`Buffer::new`]. Writes
         // out-of-bounds are ignored by the `if let` in the code. This
@@ -92,7 +70,7 @@ impl Buffer {
         // lmao
         if let Some(index) = self.compute_index(cursor) {
             unsafe {
-                self.data.as_mut_ptr().add(index).write_volatile(data);
+                self.data.add(index).write_volatile(data);
                 true
             }
         } else {
@@ -106,14 +84,14 @@ impl Buffer {
     ///
     /// If the cursor is out-of-bounds, [`None`] is returned. Otherwise,
     /// [`Some(VGAEntry)`] is returned.
-    pub fn read(&self, cursor: Cursor) -> Option<VGAEntry> {
+    fn read(&self, cursor: Cursor) -> Option<VGAEntry> {
         // SAFETY: Like with [`Buffer::write`], the bounds are assumed to
         // be given correctly when the unsafe [`Buffer::new`] method is
         // called. Because race conditions create undefined behavior,
         // a mutable reference to the buffer is required to write,
         // so reads may not be race with writes.
         self.compute_index(cursor)
-            .map(|index| unsafe { self.data.as_ptr().add(index).read_volatile() })
+            .map(|index| unsafe { self.data.add(index).read_volatile() })
     }
 
     // #[inline(always)]
@@ -208,12 +186,17 @@ impl Write for WriterInner {
     }
 }
 
-pub struct Writer(SpinMutex<WriterInner>);
+struct Writer(SpinMutex<WriterInner>);
+
+// These are safe as [`Writer`] will keeps the [`*mut VGAEntry`]
+// behind safe functions in [`Buffer`] with proper aliasing rules.
+unsafe impl Send for Writer {}
+unsafe impl Sync for Writer {}
 
 static WRITER: Lazy<Writer> = Lazy::new(|| {
     Writer(SpinMutex::new(WriterInner::new(unsafe {
         Buffer::new(
-            0xB8000,
+            0xb8000,
             NonZeroUsize::new(80).unwrap(),
             NonZeroUsize::new(25).unwrap(),
         )
