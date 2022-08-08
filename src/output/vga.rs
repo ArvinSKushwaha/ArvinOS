@@ -38,8 +38,11 @@ pub struct VGAEntry {
     pub color: VGAColor,
 }
 
-pub static DEFAULT_COLOR: VGAColor = VGAColor::from_fg_bg(Color::White, Color::Black);
-pub static EMPTY_ENTRY: VGAEntry = VGAEntry {
+pub const VGA_WIDTH: usize = 80;
+pub const VGA_HEIGHT: usize = 25;
+
+pub const DEFAULT_COLOR: VGAColor = VGAColor::from_fg_bg(Color::White, Color::Black);
+pub const EMPTY_ENTRY: VGAEntry = VGAEntry {
     char: b' ',
     color: DEFAULT_COLOR,
 };

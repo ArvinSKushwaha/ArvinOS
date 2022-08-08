@@ -12,6 +12,9 @@ cargo b -r -Z unstable-options --out-dir isodir/boot/
 grub-mkrescue -o arvinos.iso isodir
 '''
 
+[tasks.all]
+dependencies = ["build", "build_release"]
+
 # [tasks.build_and_test]
 # clear = true
 # script = '''
