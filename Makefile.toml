@@ -1,0 +1,22 @@
+[tasks.build]
+clear = true
+script = """
+cargo b
+cp ./target/x86_64-unknown-none/debug/arvin_os ./isodir/boot/kernel.bin
+"""
+
+[tasks.build_release]
+script = """
+cargo b -r
+cp ./target/x86_64-unknown-none/release/arvin_os ./isodir/boot/kernel.bin
+"""
+
+[tasks.run]
+dependencies = ["build_release"]
+script = """
+grub-mkrescue -o arvinos.iso isodir
+qemu-system-x86_64 -m 2048 --drive file=arvinos.iso,format=raw
+"""
+
+[tasks.test]
+disabled = true
