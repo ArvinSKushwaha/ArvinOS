@@ -1,0 +1,9 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
+[tasks.default]
+alias = "build"
+
+[tasks.build]
+command = "cargo"
+args = [ "build" ]
