@@ -1,14 +1,10 @@
 [package]
-name = "kernel"
+name = "multiboot"
 version = "0.1.0"
 edition = "2021"
-
-[[bin]]
-name = "os"
-path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 intrinsics = { path = "../intrinsics" }
-multiboot = { path = "../multiboot" }
+bitflags = "2.3"

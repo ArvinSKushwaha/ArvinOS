@@ -1,5 +1,8 @@
 [build]
-target = "config/x86_64-unknown-none.json"
+target = "config/x86-unknown-none.json"
+out-dir = "isodir/boot"
+rustflags = ["-Clink-args=-Tconfig/linker.ld -nostdlib"]
 
 [unstable]
 build-std = ["core", "alloc"]
+unstable-options = true

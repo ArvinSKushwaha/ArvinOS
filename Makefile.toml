@@ -1,9 +1,21 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 
+[config]
+default_to_workspace = false
+
 [tasks.default]
 alias = "build"
 
 [tasks.build]
+cwd = "kernel"
 command = "cargo"
 args = [ "build" ]
+
+[tasks.build-iso]
+dependencies = ["build"]
+script = "grub-mkrescue -o target/arvinos.iso isodir"
+
+[tasks.run-iso]
+dependencies = ["build-iso"]
+script = "qemu-system-x86_64 -m 2048 --drive file=target/arvinos.iso,format=raw"

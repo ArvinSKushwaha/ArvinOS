@@ -1,14 +1,10 @@
 [package]
-name = "kernel"
+name = "intrinsics"
 version = "0.1.0"
 edition = "2021"
-
-[[bin]]
-name = "os"
-path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-intrinsics = { path = "../intrinsics" }
-multiboot = { path = "../multiboot" }
+voladdress = "1.3"
+spin = { version = "0.9.8", features = ["ticket_mutex"] }
